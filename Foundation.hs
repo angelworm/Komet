@@ -18,6 +18,7 @@ import Model
 import Text.Jasmine (minifym)
 import Text.Hamlet (hamletFile)
 import Yesod.Core.Types (Logger)
+import Slack
 
 -- | The site argument for your application. This can be a good place to
 -- keep settings and values requiring initialization before your application
@@ -132,7 +133,11 @@ instance YesodAuth App where
                     }
 
     -- You can add other plugins like BrowserID, email or OAuth here
-    authPlugins app = [authOAuth2 undefined undefined undefined]
+    authPlugins app = [authSlack id secret]
+        where
+          extra  = appExtra $ settings app
+          id     = extraServerID extra
+          secret = extraServerSecret extra
 
     authHttpManager = httpManager
 
