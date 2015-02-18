@@ -5,19 +5,27 @@ import Control.Monad
 import Data.Aeson
 import Data.Text
 import Data.Text.Encoding
+import Data.Maybe
 import Prelude
 import Yesod.Auth
 import Yesod.Auth.OAuth2
     
---import Network.HTTP.Conduit (Manager)
+import Network.HTTP.Conduit (Manager)
 
-newtype ResultCred m  = ResultCred (AccessToken->Creds m)
+newtype ResultCred = ResultCred [(Text, Text)]
 
-instance FromJSON (ResultCred m) where
+instance FromJSON ResultCred where
     parseJSON (Object o) = do
       ok <- o .:  "ok"
       when (not ok) $ (o .: "error") >>= fail
-      return $ ResultCred $ (\x -> Creds "Slack" (decodeUtf8 $ accessToken x) undefined)
+      extra <- (o .: "user") >>= \x -> do
+               uid  <- x .: "id"
+               name <- x .: "name"
+               real <- x .: "real_name"
+               return [ ("uid",  uid)
+                      , ("name", name)
+                      , ("real", real)]
+      return $ ResultCred $ extra
 
 authSlack:: YesodAuth m => Text -> Text -> AuthPlugin m
 authSlack authid secret = authOAuth2 service oauth callback
@@ -30,9 +38,15 @@ authSlack authid secret = authOAuth2 service oauth callback
                 , oauthAccessTokenEndpoint = "https://slack.com/api/oauth.access"
                 , oauthCallback = Nothing
                 }
-      callback::AccessToken -> IO (Creds m)
-      callback accesstoken = do
-        result <- authGetJSON accesstoken "https://slack.com/api/users.info"
+      callback::Manager->AccessToken -> IO (Creds m)
+      callback manager accesstoken = do
+        result <- authGetJSON manager accesstoken "https://slack.com/api/users.info"
         case result of
-          Right (ResultCred cred) -> return $ cred accesstoken
+          Right (ResultCred cred) -> return $ mkCreds accesstoken cred
           Left err -> throwIO $ InvalidProfileResponse "Slack" err
+
+      mkCreds::AccessToken->[(Text, Text)]->Creds m
+      mkCreds at extra = Creds "Slack" ident extra'
+          where
+            ident  = fromMaybe "NOTFOUND" $ lookup "uid" extra
+            extra' = ("token", decodeUtf8 $ accessToken at) : extra
