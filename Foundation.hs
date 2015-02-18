@@ -8,7 +8,8 @@ import Yesod.Default.Util   (addStaticContentExternal)
 import Yesod.Core.Types     (Logger)
 import qualified Yesod.Core.Unsafe as Unsafe
 import Slack                (authSlack)
-
+import Data.Maybe
+    
 -- | The foundation datatype for your application. This can be a good place to
 -- keep settings and values requiring initialization before your application
 -- starts running, such as database connections. Every handler will have
@@ -128,7 +129,10 @@ instance YesodAuth App where
             Nothing -> do
                 fmap Just $ insert User
                     { userIdent = credsIdent creds
-                    , userPassword = Nothing
+                    , userToken = fromJust $ lookup "token" $ credsExtra creds
+                    , userTid   = fromJust $ lookup "tid"   $ credsExtra creds
+                    , userName  = fromJust $ lookup "name"  $ credsExtra creds
+                    , userTeam  = fromJust $ lookup "team"  $ credsExtra creds
                     }
 
     -- You can add other plugins like BrowserID, email or OAuth here

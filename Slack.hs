@@ -8,24 +8,25 @@ import Data.Text.Encoding
 import Data.Maybe
 import Prelude
 import Yesod.Auth
-import Yesod.Auth.OAuth2
-    
-import Network.HTTP.Conduit (Manager)
+import Yesod.Auth.OAuth2 hiding(authGetJSON)
+import Network.HTTP.Conduit
+import qualified Data.ByteString.Char8 as BS
 
+import Network.HTTP.Conduit (Manager)
 newtype ResultCred = ResultCred [(Text, Text)]
 
 instance FromJSON ResultCred where
     parseJSON (Object o) = do
       ok <- o .:  "ok"
       when (not ok) $ (o .: "error") >>= fail
-      extra <- (o .: "user") >>= \x -> do
-               uid  <- x .: "id"
-               name <- x .: "name"
-               real <- x .: "real_name"
-               return [ ("uid",  uid)
-                      , ("name", name)
-                      , ("real", real)]
-      return $ ResultCred $ extra
+      uid  <- o .: "user_id"
+      tid  <- o .: "team_id"
+      name <- o .: "user"
+      team <- o .: "team"
+      return $ ResultCred $ [ ("uid",  uid)
+                            , ("tid",  tid)
+                            , ("name", name)
+                            , ("team", team)]
 
 authSlack:: YesodAuth m => Text -> Text -> AuthPlugin m
 authSlack authid secret = authOAuth2 service oauth callback
@@ -40,7 +41,8 @@ authSlack authid secret = authOAuth2 service oauth callback
                 }
       callback::Manager->AccessToken -> IO (Creds m)
       callback manager accesstoken = do
-        result <- authGetJSON manager accesstoken "https://slack.com/api/users.info"
+        putStrLn $ show accesstoken
+        result <- authGetJSON manager (decodeUtf8 $ accessToken accesstoken) "https://slack.com/api/auth.test" []
         case result of
           Right (ResultCred cred) -> return $ mkCreds accesstoken cred
           Left err -> throwIO $ InvalidProfileResponse "Slack" err
@@ -48,5 +50,11 @@ authSlack authid secret = authOAuth2 service oauth callback
       mkCreds::AccessToken->[(Text, Text)]->Creds m
       mkCreds at extra = Creds "Slack" ident extra'
           where
-            ident  = fromMaybe "NOTFOUND" $ lookup "uid" extra
+            ident  = fromJust $ lookup "uid" extra
             extra' = ("token", decodeUtf8 $ accessToken at) : extra
+
+
+authGetJSON:: FromJSON a => Manager-> Text -> URI -> QueryParams -> IO (OAuth2Result a)
+authGetJSON manager token uri params = liftM parseResponseJSON $ liftM handleResponse $ do
+  req <- parseUrl $ BS.unpack $ appendQueryParam uri $ ("token", encodeUtf8 token):params
+  httpLbs req manager
