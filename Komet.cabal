@@ -23,6 +23,8 @@ library
                      Handler.Common
                      Handler.Home
                      Slack
+                     Slack.Rest
+                     Slack.RTI
                      Agent
 
     if flag(dev) || flag(library-only)
