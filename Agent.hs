@@ -10,10 +10,19 @@ import Data.Text.IO as T
 import Control.Applicative
 import Data.Aeson
 import qualified Data.ByteString.Lazy.Char8 as BSL
-    
-slackRTI::ClientApp ()
-slackRTI conn = do
+import Network.HTTP.Conduit
+import Yesod.Auth.OAuth2 (OAuth2Result)
+
+postMessageBot::Manager -> Text -> Text -> Text -> IO (OAuth2Result MessageResponse)
+postMessageBot m token chan msg = postMessageWith m token chan msg q
+    where
+      q = [("username", "Komet")]
+
+slackRTI::T.Text -> ClientApp ()
+slackRTI token conn = do
     T.putStrLn "Connected!"
+     
+    m <- newManager conduitManagerSettings
 
     _ <- forever $ do
       recd <- receiveData conn
@@ -22,23 +31,28 @@ slackRTI conn = do
         Just (EventMessage (Message _ c u v _)) -> do
           T.putStrLn $ T.concat [ u , "@" , c , " : " , v]
         Just (EventStarAdded u i t) -> do
-          T.putStrLn $ T.concat
-                  [ u
-                  , "@"
-                  , starMessageChannel i
-                  , " starred : "
+          let c = starMessageChannel i
+          let msgLog = T.concat
+                  [ u, "@", c, " starred : "
                   , messageText $ starMessageMessage i]
+          T.putStrLn msgLog
+          let msg = T.concat
+                  [ u, " starred : "
+                  , messageText $ starMessageMessage i]
+          void $ postMessageBot m token c msg
         Just (EventStarRemoved u i t) -> do
-          T.putStrLn $ T.concat
-                  [ u
-                  , "@"
-                  , starMessageChannel i
-                  , " unsttarred : "
+          let msgLog = T.concat
+                  [ u, "@", c, " unstarred : "
                   , messageText $ starMessageMessage i]
+          T.putStrLn msgLog
+          let msg = T.concat
+                  [ u, " unstarred : "
+                  , messageText $ starMessageMessage i]
+          void $ postMessageBot m token c msg
         Just (EventOther x) -> T.putStrLn $ T.append "unknown message: " x
         Nothing -> Prelude.putStrLn $ "Error message recieved: " ++ (BSL.unpack recd)
 
     sendClose conn ("Bye!" :: Text)
 
 runAgent::T.Text -> IO ThreadId
-runAgent token = startSlackRTI token slackRTI
+runAgent token = startSlackRTI token $ slackRTI token

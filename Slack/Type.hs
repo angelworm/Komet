@@ -5,7 +5,20 @@ import Control.Monad
 import Data.Aeson
 import Data.Text
 import Prelude
-    
+
+data MessageResponse = MessageResponse
+    { msgResponceTimestamp :: Text
+    , msgResponceChannel :: Text
+    }
+     
+instance FromJSON MessageResponse where
+    parseJSON (Object o) = do
+      ok <- o .:  "ok"
+      when (not ok) $ (o .: "error") >>= fail
+      MessageResponse <$> o .: "ts"
+                      <*> o .: "channel"
+    parseJSON x = fail $ show x
+                         
 data SlackTopic = SlackTopic
     { topicValue   :: Text
     , topicCreator :: Text
@@ -211,9 +224,15 @@ instance FromJSON Message where
     parseJSON (Object o) = do
       Message <$> o .: "type"
                   <*> o .:? "channel" .!= ""
-                  <*> o .:  "user"
+                  <*> (o .:? "user") `or` (o .: "username")
                   <*> o .:  "text"
                   <*> o .:  "ts"
+          where
+            or m1 m2 = do
+              m1' <- m1
+              case m1' of
+                Just x  -> return x
+                Nothing -> m2
     parseJSON x = fail $ show x
                   
 data StarItem = StarMessage

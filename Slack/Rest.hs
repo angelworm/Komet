@@ -17,6 +17,7 @@ import Yesod.Auth.OAuth2 hiding(authGetJSON)
 import Yesod.Core
 import Yesod.Form
 import qualified Data.ByteString.Char8 as BS
+import Slack.Type
     
 newtype ResultCred = ResultCred [(Text, Text)]
 
@@ -89,3 +90,13 @@ authGetJSON:: FromJSON a => Manager-> Text -> URI -> QueryParams -> IO (OAuth2Re
 authGetJSON manager token uri params = liftM parseResponseJSON $ liftM handleResponse $ do
   req <- parseUrl $ BS.unpack $ appendQueryParam uri $ ("token", encodeUtf8 token):params
   httpLbs req manager
+
+postMessage::Manager -> Text -> Text -> Text -> IO (OAuth2Result MessageResponse)
+postMessage m token chan msg = postMessageWith m token chan msg []
+
+postMessageWith::Manager -> Text -> Text -> Text -> QueryParams -> IO (OAuth2Result MessageResponse)
+postMessageWith m token chan msg q = authGetJSON m token url param
+    where
+      url = "https://slack.com/api/chat.postMessage"
+      param = [ ("channel", encodeUtf8 chan)
+              , ("text", encodeUtf8 msg)] ++ q
