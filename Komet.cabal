@@ -23,6 +23,7 @@ library
                      Handler.Common
                      Handler.Home
                      Slack
+                     Agent
 
     if flag(dev) || flag(library-only)
         cpp-options:   -DDEVELOPMENT
@@ -83,6 +84,14 @@ library
                  , containers
                  , vector
                  , time
+                 , mtl
+                 , websockets
+                 , network
+                 , transformers
+                 , uuid
+                 , HsOpenSSL
+                 , openssl-streams
+                 , io-streams
 
 executable         Komet
     if flag(library-only)

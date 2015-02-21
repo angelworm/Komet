@@ -7,9 +7,10 @@ import Text.Jasmine         (minifym)
 import Yesod.Default.Util   (addStaticContentExternal)
 import Yesod.Core.Types     (Logger)
 import qualified Yesod.Core.Unsafe as Unsafe
-import Slack                (authSlack)
+import Slack                (authSlackScoped)
 import Data.Maybe
-    
+import Control.Concurrent   (ThreadId)
+  
 -- | The foundation datatype for your application. This can be a good place to
 -- keep settings and values requiring initialization before your application
 -- starts running, such as database connections. Every handler will have
@@ -20,6 +21,7 @@ data App = App
     , appConnPool    :: ConnectionPool -- ^ Database connection pool.
     , appHttpManager :: Manager
     , appLogger      :: Logger
+    , appRTISocket   :: IORef [(Text, ThreadId)]
     }
 
 instance HasHttpManager App where
@@ -136,11 +138,12 @@ instance YesodAuth App where
                     }
 
     -- You can add other plugins like BrowserID, email or OAuth here
-    authPlugins app = [authSlack id secret]
+    authPlugins app = [authSlackScoped id secret scopes]
         where
           extra  = appSettings app
           id     = appSlackID extra
           secret = appSlackSecret extra
+          scopes = ["identify","read","post","client"]
 
     authHttpManager = getHttpManager
 
