@@ -32,6 +32,7 @@ instance FromJSON ResultCred where
                             , ("tid",  tid)
                             , ("name", name)
                             , ("team", team)]
+    parseJSON x = fail $ show x
 
 authSlack::YesodAuth m => Text -> Text -> AuthPlugin m
 authSlack authid secret = authSlackScoped authid secret ["identify", "read", "post"]

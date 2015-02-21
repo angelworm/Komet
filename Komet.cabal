@@ -25,6 +25,7 @@ library
                      Slack
                      Slack.Rest
                      Slack.RTI
+                     Slack.Type
                      Agent
 
     if flag(dev) || flag(library-only)
