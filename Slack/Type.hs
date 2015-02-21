@@ -5,11 +5,12 @@ import Control.Monad
 import Data.Aeson
 import Data.Text
 import Prelude
+import Debug.Trace
 
 data MessageResponse = MessageResponse
     { msgResponceTimestamp :: Text
     , msgResponceChannel :: Text
-    }
+    } deriving(Show)
      
 instance FromJSON MessageResponse where
     parseJSON (Object o) = do
@@ -17,22 +18,20 @@ instance FromJSON MessageResponse where
       when (not ok) $ (o .: "error") >>= fail
       MessageResponse <$> o .: "ts"
                       <*> o .: "channel"
-    parseJSON x = fail $ show x
+    parseJSON x =  show x `trace` fail $ show x
                          
 data SlackTopic = SlackTopic
     { topicValue   :: Text
     , topicCreator :: Text
     , topicLastSet :: Int
-    }
+    } deriving(Show)
 
 instance FromJSON SlackTopic where
     parseJSON (Object o) = do
-      ok <- o .:  "ok"
-      when (not ok) $ (o .: "error") >>= fail
       SlackTopic <$> o .: "value"
                  <*> o .: "creator"
                  <*> o .: "last_set"
-    parseJSON x = fail $ show x
+    parseJSON x =  show x `trace` fail $ show x
 
 data SlackChannel = SlackChannel
     { chanId                 :: Text
@@ -42,34 +41,32 @@ data SlackChannel = SlackChannel
     , chanCreator            :: Text
     , chanIsArchived         :: Bool
     , chanIsGeneral          :: Bool
-    , chanMembers            :: [Text]
-    , chanTopic              :: SlackTopic
-    , chanPurpose            :: SlackTopic
-    , chanIsMember           :: Bool
-    , chanLastRead           :: Text
-    , chanUnreadCount        :: Int
-    , chanUnreadCountDisplay :: Int
-    }
+    , chanMembers            :: Maybe [Text]
+    , chanTopic              :: Maybe SlackTopic
+    , chanPurpose            :: Maybe SlackTopic
+    , chanIsMember           :: Maybe Bool
+    , chanLastRead           :: Maybe Text
+    , chanUnreadCount        :: Maybe Int
+    , chanUnreadCountDisplay :: Maybe Int
+    } deriving(Show)
 
 instance FromJSON SlackChannel where
     parseJSON (Object o) = do
-      ok <- o .:  "ok"
-      when (not ok) $ (o .: "error") >>= fail
-      SlackChannel <$> o .: "id"
-                   <*> o .: "name"
-                   <*> o .: "is_channel"
-                   <*> o .: "created"
-                   <*> o .: "creator"
-                   <*> o .: "is_archived"
-                   <*> o .: "is_general"
-                   <*> o .: "members"
-                   <*> o .: "topic"
-                   <*> o .: "purpose"
-                   <*> o .: "is_member"
-                   <*> o .: "last_read"
-                   <*> o .: "unread_count"
-                   <*> o .: "unread_count_display"
-    parseJSON x = fail $ show x
+      SlackChannel <$> o .:? "id" .!= ""
+                   <*> o .:? "name" .!= ""
+                   <*> o .:? "is_channel" .!= False
+                   <*> o .:? "created" .!= 0
+                   <*> o .:? "creator" .!= ""
+                   <*> o .:? "is_archived" .!= False
+                   <*> o .:? "is_general" .!= False
+                   <*> o .:? "members"
+                   <*> o .:? "topic"
+                   <*> o .:? "purpose"
+                   <*> o .:? "is_member"
+                   <*> o .:? "last_read"
+                   <*> o .:? "unread_count"
+                   <*> o .:? "unread_count_display"
+    parseJSON x = show x `trace` fail $ show x
 
 data SlackFile = SlackFile
     { fileId :: Text
@@ -108,12 +105,10 @@ data SlackFile = SlackFile
     , fileGroups :: [Text]
     , fileNumStars :: Int
     , fileIsStarred :: Bool
-    }
+    } deriving(Show)
                        
 instance FromJSON SlackFile where
     parseJSON (Object o) = do
-      ok <- o .:  "ok"
-      when (not ok) $ (o .: "error") >>= fail
       SlackFile <$> o .: "id"
                 <*> o .: "created"
                 <*> o .: "timestamp"
@@ -150,7 +145,7 @@ instance FromJSON SlackFile where
                 <*> o .: "groups"
                 <*> o .: "num_stars"
                 <*> o .: "is_starred"
-    parseJSON x = fail $ show x
+    parseJSON x =  show x `trace` fail $ show x
 
 data SlackUser = SlackUser
     { userId :: Text
@@ -164,24 +159,22 @@ data SlackUser = SlackUser
     , userIsRestricted :: Bool
     , userIsUltraRestricted :: Bool
     , userHasFiles :: Bool
-    }
+    } deriving(Show)
                   
 instance FromJSON SlackUser where
     parseJSON (Object o) = do
-      ok <- o .:  "ok"
-      when (not ok) $ (o .: "error") >>= fail
       SlackUser <$> o .: "id"
-                    <*> o .: "name"
-                    <*> o .: "deleted"
-                    <*> o .: "color"
-                    <*> o .: "profile"
-                    <*> o .: "is_admin"
-                    <*> o .: "is_owner"
-                    <*> o .: "is_primary_owner"
-                    <*> o .: "is_restricted"
-                    <*> o .: "is_ultra_restricted"
-                    <*> o .: "has_files"
-    parseJSON x = fail $ show x
+                    <*> o .:? "name" .!= ""
+                    <*> o .:? "deleted" .!= False
+                    <*> o .:? "color" .!= ""
+                    <*> o .:  "profile"
+                    <*> o .:? "is_admin" .!= False
+                    <*> o .:? "is_owner" .!= False
+                    <*> o .:? "is_primary_owner" .!= False
+                    <*> o .:? "is_restricted" .!= False
+                    <*> o .:? "is_ultra_restricted" .!= False
+                    <*> o .:? "has_files" .!= False
+    parseJSON x =  show x `trace` fail $ show x
 
 data SlackProfile = SlackProfile
     { userFirstName :: Text
@@ -195,23 +188,21 @@ data SlackProfile = SlackProfile
     , userImage48 :: Text
     , userImage72 :: Text
     , userImage192 :: Text
-    }
+    } deriving(Show)
 instance FromJSON SlackProfile where
     parseJSON (Object o) = do
-      ok <- o .:  "ok"
-      when (not ok) $ (o .: "error") >>= fail
-      SlackProfile <$> o .: "first_name"
-                    <*> o .: "last_name"
-                    <*> o .: "real_name"
-                    <*> o .: "email"
-                    <*> o .: "skype"
-                    <*> o .: "phone"
-                    <*> o .: "image_24"
-                    <*> o .: "image_32"
-                    <*> o .: "image_48"
-                    <*> o .: "image_72"
-                    <*> o .: "image_192"
-    parseJSON x = fail $ show x
+      SlackProfile <$> o .:? "first_name" .!= ""
+                    <*> o .:? "last_name" .!= ""
+                    <*> o .:? "real_name" .!= ""
+                    <*> o .:? "email" .!= ""
+                    <*> o .:? "skype" .!= ""
+                    <*> o .:? "phone" .!= ""
+                    <*> o .:? "image_24" .!= ""
+                    <*> o .:? "image_32" .!= ""
+                    <*> o .:? "image_48" .!= ""
+                    <*> o .:? "image_72" .!= ""
+                    <*> o .:? "image_192" .!= ""
+    parseJSON x =  show x `trace` fail $ show x
 
 data Message = Message
     { messageType :: Text
@@ -219,12 +210,12 @@ data Message = Message
     , messageUser :: Text
     , messageText :: Text
     , messageTs :: Text
-    }
+    } deriving(Show)
 instance FromJSON Message where
     parseJSON (Object o) = do
       Message <$> o .: "type"
                   <*> o .:? "channel" .!= ""
-                  <*> (o .:? "user") `or` (o .: "username")
+                  <*> ((o .:? "user") `or` (o .: "username"))
                   <*> o .:  "text"
                   <*> o .:  "ts"
           where
@@ -233,8 +224,8 @@ instance FromJSON Message where
               case m1' of
                 Just x  -> return x
                 Nothing -> m2
-    parseJSON x = fail $ show x
-                  
+    parseJSON x =  show x `trace` fail $ show x
+
 data StarItem = StarMessage
     { starMessageChannel :: Text
     , starMessageMessage :: Message
@@ -244,6 +235,7 @@ data StarItem = StarMessage
               | StarChannel
               | StarIM
               | StarGroup
+                deriving(Show)
 instance FromJSON StarItem where
     parseJSON (Object o) = do
       mtype <- o .: "type"
@@ -251,7 +243,7 @@ instance FromJSON StarItem where
         "message" -> StarMessage <$> o .: "channel"
                                  <*> o .: "message"
         _ -> fail "Slack Type: sorry unimplemented"
-    parseJSON x = fail $ show x
+    parseJSON x =  show x `trace` fail $ show x
 
 data SlackEvent = EventHello
                 | EventMessage Message
@@ -261,11 +253,12 @@ data SlackEvent = EventHello
     , eventStarAddedEventTs :: Text
     }
                 | EventStarRemoved
-    { eventStarAddedUser :: Text
-    , eventStarAddedItem :: StarItem
-    , eventStarAddedEventTs :: Text
+    { eventStarRemoveUser :: Text
+    , eventStarRemoveItem :: StarItem
+    , eventStarRemoveEventTs :: Text
     }
                 | EventOther Text
+                   deriving(Show)
 
 instance FromJSON SlackEvent where
     parseJSON (Object o) = do
@@ -280,4 +273,4 @@ instance FromJSON SlackEvent where
                                        <*> o .: "item"
                                        <*> o .: "event_ts"
         _ -> return $ EventOther $ pack $ show (Object o)
-    parseJSON x = fail $ show x
+    parseJSON x =  show x `trace` fail $ show x
