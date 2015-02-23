@@ -84,4 +84,21 @@ startSlackRTISession token app = do
           parseUrl' = parseUrl . T.unpack . T.append "http" . T.dropWhile (/=':')
 
 startSlackRTI::Text -> SlackRTIClient a -> IO ThreadId
-startSlackRTI token = forkIO . forever . startSlackRTISession token
+startSlackRTI token = forkIO . forever . catchSession . startSlackRTISession token
+    where
+      catchSession::IO a -> IO ()
+      catchSession m = catches (void m) 
+                       [ Handler handleAsyncException
+                       , Handler handleIOException
+                       , Handler handleSomeException
+                       ]
+      handleAsyncException::AsyncException->IO ()
+      handleAsyncException e = do
+        putStrLn $ show e
+        throw e
+      handleIOException::IOError -> IO ()
+      handleIOException e = do
+        putStrLn $ show e
+      handleSomeException::SomeException -> IO ()
+      handleSomeException e = do
+        putStrLn $ show e

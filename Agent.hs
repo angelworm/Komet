@@ -1,20 +1,19 @@
 module Agent where
     
+import Control.Applicative
 import Control.Concurrent
 import Control.Monad
+import Data.Aeson
+import Data.Maybe
+import Data.Text as T
+import Data.Text.IO as T
+import Debug.Trace
+import Network.HTTP.Conduit
 import Network.WebSockets
 import Prelude
 import Slack
-import Data.Text as T
-import Data.Text.IO as T
-import Control.Applicative
-import Data.Aeson
-import qualified Data.ByteString.Lazy.Char8 as BSL
-import Network.HTTP.Conduit
 import Yesod.Auth.OAuth2 (OAuth2Result)
-import Data.Maybe
-import Control.Exception
-import Debug.Trace
+import qualified Data.ByteString.Lazy.Char8 as BSL
     
 postMessageBot::Manager -> Text -> Text -> Text -> IO (OAuth2Result MessageResponse)
 postMessageBot m token chan msg = postMessageWith m token chan msg q
@@ -36,12 +35,14 @@ lookupUserName info userid = lookup (traceShowId $ userid) us
 slackRTI::T.Text -> SlackRTIClient ()
 slackRTI token info conn = do
     let self = rtiSelf info
+    m <- newManager conduitManagerSettings
+
+    forkPingThread conn 10
 
     T.putStrLn $ T.append "Connected! you are :" self
     Prelude.putStrLn $ show self
-    m <- newManager conduitManagerSettings
 
-    void $ forever $ trymsg $ do
+    void $ forever $ do
       recd <- receiveData conn
       case decode recd of
         Just EventHello -> T.putStrLn "Hello"
@@ -50,7 +51,7 @@ slackRTI token info conn = do
                                 , "@"
                                 , fromMaybe "Shangri-La" $ lookupChanName info c
                                 , " : " , v]
-        Just (EventStarAdded u' i _) ->  when (u' == self) $ do
+        Just (EventStarAdded u' i _) -> when (u' == self) $ do
           let c = fromMaybe "Shangri-La" $ lookupChanName info $ starMessageChannel i
           let u = fromMaybe u' $ lookupUserName info u'
           let msgLog = T.concat
@@ -78,9 +79,6 @@ slackRTI token info conn = do
         Nothing -> Prelude.putStrLn $ "Error message recieved: " ++ (BSL.unpack recd)
 
     sendClose conn ("Bye!" :: Text)
---    runAgent token
-        where
-          trymsg m = catch m (\x -> Prelude.putStrLn $ "L:" ++ show (x::SomeException))
 
 runAgent::T.Text -> IO ThreadId
 runAgent token = startSlackRTI token $ slackRTI token
