@@ -27,6 +27,7 @@ import Network.Wai.Middleware.RequestLogger (Destination (Logger),
                                              mkRequestLogger, outputFormat)
 import System.Log.FastLogger                (defaultBufSize, newStdoutLoggerSet,
                                              toLogStr)
+import Database.Persist.Sql                 (ConnectionPool, runSqlPool, SqlPersist)
 
 -- Import all relevant handler modules here.
 -- Don't forget to add new modules to your cabal file!
@@ -66,13 +67,23 @@ makeFoundation appSettings = do
     pool <- flip runLoggingT logFunc $ createSqlitePool
         (sqlDatabase $ appDatabaseConf appSettings)
         (sqlPoolSize $ appDatabaseConf appSettings)
-
+    
     -- Perform database migration using our application's logging settings.
     runLoggingT (runSqlPool (runMigration migrateAll) pool) logFunc
 
     -- Return the foundation
-    return $ mkFoundation pool
+    let app = mkFoundation pool
 
+    runSqlPool (launchRTIThreads app) pool
+
+    return app
+    where 
+      launchRTIThreads::App -> SqlPersist IO ()
+      launchRTIThreads app = do
+        users <- selectList [] []
+        liftIO $ forM_ users $ \(Entity _ user) ->
+            startUserRTI user app
+           
 -- | Convert our foundation to a WAI Application by calling @toWaiAppPlain@ and
 -- applyng some additional middlewares.
 makeApplication :: App -> IO Application
