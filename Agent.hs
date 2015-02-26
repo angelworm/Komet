@@ -3,6 +3,7 @@ module Agent where
 import Control.Applicative
 import Control.Concurrent
 import Control.Monad
+import Control.Exception
 import Data.Aeson
 import Data.Maybe
 import Data.Text as T

@@ -4,7 +4,6 @@ import Control.Concurrent
 import Control.Exception
 import Control.Monad
 import Data.Text (Text)
-import Data.Typeable
 import Data.Aeson (Object)
 import Network.HTTP.Conduit
 import Network.Socket
@@ -46,10 +45,6 @@ instance FromJSON ResultRTI where
     parseJSON x = show x `trace` fail $ show x
 
 type SlackRTIClient a = (ResultRTI -> ClientApp a)
-
-data InvalidSlackResponse = InvalidSlackResponse Text BSL.ByteString
-                            deriving (Show, Typeable)
-instance Exception InvalidSlackResponse
 
 runClientWithSSL::String -> Int -> String -> ClientApp a -> IO a
 runClientWithSSL host port path app = SSL.withOpenSSL $ do
