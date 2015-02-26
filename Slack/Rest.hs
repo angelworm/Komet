@@ -100,3 +100,12 @@ postMessageWith m token chan msg q = authGetJSON m token url param
       url = "https://slack.com/api/chat.postMessage"
       param = [ ("channel", encodeUtf8 chan)
               , ("text", encodeUtf8 msg)] ++ q
+
+imOpen::Manager -> Text -> Text -> IO (OAuth2Result IMOpenResponce)
+imOpen m token user = imOpenWith m token user []
+
+imOpenWith::Manager -> Text -> Text -> QueryParams -> IO (OAuth2Result IMOpenResponce)
+imOpenWith m token user q = authGetJSON m token url param
+    where
+      url = "https://slack.com/api/im.open"
+      param = ("user", encodeUtf8 user) : q

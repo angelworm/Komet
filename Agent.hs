@@ -21,6 +21,19 @@ postMessageBot m token chan msg = postMessageWith m token chan msg q
     where
       q = [("username", "Komet")]
 
+postIMBot::Manager -> Text -> Text -> Text -> IO (OAuth2Result MessageResponse)
+postIMBot m token user msg = do
+  res' <- imOpenWith m token user q
+  res <- case res' of
+    Left err -> throw $ InvalidSlackResponse "Slack" err
+    Right x  -> return x
+  chan <- if   imOpenResponceOk res
+          then return $ imOpenResponceChannelID res
+          else fail $ T.unpack $ T.append "cannot open im channel : " user
+  postMessageBot m token chan msg
+    where
+      q = [("username", "Komet")]
+
 lookupChanName::ResultRTI -> Text -> Maybe Text
 lookupChanName info chanid = lookup chanid cs
     where
@@ -28,58 +41,64 @@ lookupChanName info chanid = lookup chanid cs
       getPair = (,) <$> chanId <*> chanName
 
 lookupUserName::ResultRTI -> Text -> Maybe Text
-lookupUserName info userid = lookup (traceShowId $ userid) us
+lookupUserName info userid = lookup userid us
     where
       us = Prelude.map getPair $ rtiUsers info
       getPair = (,) <$> userId <*> userName
           
 slackRTI::T.Text -> SlackRTIClient ()
 slackRTI token info conn = do
-    let self = rtiSelf info
     m <- newManager conduitManagerSettings
 
     forkPingThread conn 10
 
-    T.putStrLn $ T.append "Connected! you are :" self
-    Prelude.putStrLn $ show self
+    T.putStrLn $ T.append "Connected! you are " $ fromMaybe self $ lookupUserName info self
 
     void $ forever $ do
       recd <- receiveData conn
       case decode recd of
-        Just EventHello -> T.putStrLn "Hello"
-        Just (EventMessage (Message _ c u v _)) -> do
-          T.putStrLn $ T.concat [ fromMaybe u $ lookupUserName info u
-                                , "@"
-                                , fromMaybe "Shangri-La" $ lookupChanName info c
-                                , " : " , v]
-        Just (EventStarAdded u' i _) -> when (u' == self) $ do
-          let c = fromMaybe "Shangri-La" $ lookupChanName info $ starMessageChannel i
-          let u = fromMaybe u' $ lookupUserName info u'
-          let msgLog = T.concat
-                  [ u, "@", c, " starred : "
-                  , messageText $ starMessageMessage i]
-          Prelude.putStrLn $ "addstar/" ++ show u
-          T.putStrLn msgLog
-          let msg = T.concat
-                  [ u, " starred : "
-                  , messageText $ starMessageMessage i]
-          a <- postMessageBot m token (starMessageChannel i) msg
-          Prelude.putStrLn $ show a
-        Just (EventStarRemoved u' i _) -> when (u' == self) $ do
-          let c = fromMaybe "Shangri-La" $ lookupChanName info $ starMessageChannel i
-          let u = fromMaybe u' $ lookupUserName info u'
-          let msgLog = T.concat
-                  [ u, "@", c, " unstarred : "
-                  , messageText $ starMessageMessage i]
-          T.putStrLn msgLog
-          let msg = T.concat
-                  [ u, " unstarred : "
-                  , messageText $ starMessageMessage i]
-          void $ postMessageBot m token (starMessageChannel i) msg
-        Just (EventOther x) -> T.putStrLn $ T.append "unknown message: " x
+        Just x  -> reciever m x
         Nothing -> Prelude.putStrLn $ "Error message recieved: " ++ (BSL.unpack recd)
-
-    sendClose conn ("Bye!" :: Text)
+    where
+      self::Text
+      self = rtiSelf info
+             
+      reciever::Manager -> SlackEvent -> IO ()
+      reciever m (EventMessage (Message _ c u v _)) = T.putStrLn msg
+          where
+            msg = T.concat [ fromMaybe u $ lookupUserName info u
+                           , "@"
+                           , fromMaybe "Shangri-La" $ lookupChanName info c
+                           , " : " , v]
+      reciever m (EventStarAdded u' i _) = do
+          let c = fromMaybe "Shangri-La" $ lookupChanName info $ starMessageChannel i
+          let u = fromMaybe u' $ lookupUserName info u'
+          let msgLog = T.concat
+                       [ u, "@", c, " starred : "
+                       , messageText $ starMessageMessage i]
+          let msg = T.concat
+                  [ u, " ★ "
+                  , messageText $ starMessageMessage i]
+          T.putStrLn msgLog
+          void $ if u' == self
+                 then postMessageBot m token (starMessageChannel i) msg
+                 else postIMBot m token u' msg
+      reciever m (EventStarRemoved u' i _) = do
+          let c = fromMaybe "Shangri-La" $ lookupChanName info $ starMessageChannel i
+          let u = fromMaybe u' $ lookupUserName info u'
+          let msgLog = T.concat
+                       [ u, "@", c, " unstarred : "
+                       , messageText $ starMessageMessage i]
+          let msg = T.concat
+                  [ u, " ☆ "
+                  , messageText $ starMessageMessage i]
+          T.putStrLn msgLog
+          void $ if u' == self
+                 then postMessageBot m token (starMessageChannel i) msg
+                 else postIMBot m token u' msg
+      reciever m (EventStarRemoved u' i _) | otherwise = return ()
+      reciever m (EventOther x) = T.putStrLn $ T.append "unknown message: " x
+      reciever m _              = return ()
 
 runAgent::T.Text -> IO ThreadId
 runAgent token = startSlackRTI token $ slackRTI token
