@@ -62,40 +62,49 @@ slackRTI token info conn = do
     where
       self::Text
       self = rtiSelf info
-             
+
+      lookupUserDefault::ResultRTI -> Text -> Text
+      lookupUserDefault info u = fromMaybe u $ lookupUserName info u
+      lookupChanDefault::ResultRTI -> Text -> Text
+      lookupChanDefault info c = fromMaybe c $ lookupChanName info c
+
       reciever::Manager -> SlackEvent -> IO ()
       reciever m (EventMessage (Message _ c u v _)) = T.putStrLn msg
           where
-            msg = T.concat [ fromMaybe u $ lookupUserName info u
+            msg = T.concat [ lookupUserDefault info u
                            , "@"
-                           , fromMaybe "Shangri-La" $ lookupChanName info c
+                           , lookupChanDefault info c
                            , " : " , v]
       reciever m (EventStarAdded u' i _) = do
-          let c = fromMaybe "Shangri-La" $ lookupChanName info $ starMessageChannel i
-          let u = fromMaybe u' $ lookupUserName info u'
+          let c = lookupChanDefault info $ starMessageChannel i
+          let u = lookupUserDefault info u'
+          let msguser = messageUser $ starMessageMessage i
           let msgLog = T.concat
                        [ u, "@", c, " starred : "
+                       , lookupUserDefault info $ msguser, ":"
                        , messageText $ starMessageMessage i]
           let msg = T.concat
                   [ u, " ★ "
+                  , lookupUserDefault info $ msguser, ":"
                   , messageText $ starMessageMessage i]
           T.putStrLn msgLog
-          void $ if u' == self
-                 then postMessageBot m token (starMessageChannel i) msg
-                 else postIMBot m token u' msg
+          when (u' == self)      $ void $ postMessageBot m token (starMessageChannel i) msg
+          when (msguser == self) $ void $ postIMBot m token self msg
       reciever m (EventStarRemoved u' i _) = do
-          let c = fromMaybe "Shangri-La" $ lookupChanName info $ starMessageChannel i
-          let u = fromMaybe u' $ lookupUserName info u'
+          let c = lookupChanDefault info $ starMessageChannel i
+          let u = lookupUserDefault info u'
+          let msguser = messageUser $ starMessageMessage i
           let msgLog = T.concat
-                       [ u, "@", c, " unstarred : "
+                       [ u, "@", c, " starred : "
+                       , lookupUserDefault info $ msguser, ":"
                        , messageText $ starMessageMessage i]
           let msg = T.concat
                   [ u, " ☆ "
+                  , lookupUserDefault info $ msguser, ":"
                   , messageText $ starMessageMessage i]
           T.putStrLn msgLog
-          void $ if u' == self
-                 then postMessageBot m token (starMessageChannel i) msg
-                 else postIMBot m token u' msg
+          when (u' == self)      $ void $ postMessageBot m token (starMessageChannel i) msg
+          when (msguser == self) $ void $ postIMBot m token self msg
       reciever m (EventStarRemoved u' i _) | otherwise = return ()
       reciever m (EventOther x) = T.putStrLn $ T.append "unknown message: " x
       reciever m _              = return ()
